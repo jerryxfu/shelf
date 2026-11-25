@@ -1,0 +1,39 @@
+# Builds Shelf for Windows, to try it on a Windows machine without installing Rust there.
+# Started by hand: the Actions tab, "windows build", Run workflow. The result is the run's "shelf-windows" download.
+name: windows build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      # Reads the pnpm version from package.json's packageManager.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      # The runner comes with Rust; this brings it to the current stable.
+      - run: rustup toolchain install stable --profile minimal --no-self-update
+      # Keeps the compiled crates between runs: the first build is the long one.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+      - run: pnpm install --frozen-lockfile
+      # The app and its installer (NSIS, a setup .exe). Not signed: Windows warns before running either.
+      - run: pnpm tauri build --bundles nsis
+      - uses: actions/upload-artifact@v7
+        with:
+          name: shelf-windows
+          path: |
+            src-tauri/target/release/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14

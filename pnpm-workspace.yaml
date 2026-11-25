@@ -1,0 +1,4 @@
+# Sass lists @parcel/watcher as an optional dependency for its own `--watch` mode. Vite does the watching here, so its
+# native build is not needed.
+allowBuilds:
+  '@parcel/watcher': false

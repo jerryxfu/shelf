@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the packaged app's Info.plist by the Tauri CLI. -->
+<plist version="1.0">
+<dict>
+	<!-- An agent app: no Dock icon and no menu bar of its own, from the first moment it starts. -->
+	<key>LSUIElement</key>
+	<true/>
+</dict>
+</plist>

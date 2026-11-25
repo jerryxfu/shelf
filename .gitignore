@@ -1,0 +1,12 @@
+# Dependencies and build output
+node_modules
+dist
+*.local
+
+# Logs
+*.log
+
+# Editors and system files
+.idea
+.vscode
+.DS_Store

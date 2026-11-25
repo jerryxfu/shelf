@@ -1,0 +1,37 @@
+[package]
+name = "shelf"
+version = "0.1.0"
+description = "A desktop assistant built from modules"
+authors = ["Jerry"]
+edition = "2024"
+
+[lib]
+# The `_lib` suffix keeps the library's name different from the binary's, which Windows needs
+# (https://github.com/rust-lang/cargo/issues/8519).
+name = "shelf_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# Reads commands (show, hide, toggle, add <path>, quit) from standard input, to drive the app from a script while
+# testing. Off by default, so it is never in a normal build.
+dev-control = []
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["tray-icon"] }
+tauri-plugin-drag = "2.1"
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Turns the shelf's window into an NSPanel, so clicking it does not take focus from the app in use.
+tauri-nspanel = "2.1"
+
+# Small and fast release builds: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

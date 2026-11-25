@@ -4,8 +4,11 @@ A desktop assistant for macOS and Windows, built from modules. It runs in the ba
 where they belong, and gives you a place to hold files before you do something with them. A local AI
 model is one of its modules, so nothing you sort ever leaves the machine.
 
-> **Status:** planning. Nothing is built yet. This file records what has been decided and what is
-> still open.
+> **Status:** the first prototype passes on macOS: a tray icon and a floating shelf panel that
+> files can be dragged into and out of. It is small and light (a 3.3 MB app, 15 MB of memory when
+> idle) and feels native, so Tauri stays. Next: run it on Windows, where it compiles but is
+> untried. See [docs/prototype-notes.md](docs/prototype-notes.md). No module exists yet. The rest
+> of this file records what has been decided and what is still open.
 
 ## Why
 
@@ -92,17 +95,35 @@ trigger  ->  gather context  ->  ask the AI module (optional)  ->  propose or ac
 - **One codebase for macOS and Windows:** a Rust core and a web interface.
 - **No bundled browser.** It uses the system web view (WKWebView on macOS, WebView2 on Windows), so
   the installer stays small.
-- **Idle cost is low.** With no window open only the Rust process runs: tray icon, file watching,
-  modules. Windows are created when shown and destroyed when hidden.
+- **Idle cost is low.** Until a window is first opened only the Rust process runs: tray icon, file
+  watching, modules (15 MB measured). Windows are created when shown and destroyed when hidden.
+  After the first one, two small helper processes of the web view stay until the app quits (about
+  39 MB in all with nothing open, 63 MB with the shelf open).
 - **The two web views are different engines,** so the interface is tested on both systems.
 - **Tray, menus, notifications and dialogs are the system's own.**
 
 Considered and set aside: Kotlin Multiplatform with Compose (JVM memory use), native Swift plus a
 separate Windows app (every interface feature built twice), Wails 3 (not yet stable).
 
-**First thing to prototype:** a tray icon and a floating shelf panel that files can be dragged into
-and out of, on both systems. Dragging files out and a panel that does not steal focus both rely on
-plugins, so this is the riskiest part. Native Swift is the fallback if it does not feel right.
+**First prototype:** a tray icon and a floating shelf panel that files can be dragged into and out
+of, on both systems. Dragging files out and a panel that does not steal focus both rely on plugins
+(`tauri-plugin-drag` and, on macOS only, `tauri-nspanel`), so this is the riskiest part. Native
+Swift was the fallback if it did not feel right.
+
+- **Result on macOS (25 Nov 2026): it passes.** Checked by script and tried by hand: dragging in
+  and out feels natural, clicking the panel leaves the app in use alone, and the panel looks at
+  home. The Swift fallback is not needed.
+- **Windows:** the code compiles for Windows (checked from the Mac) but has never been run there.
+  `.github/workflows/windows.yml` builds an `.exe` on GitHub to try.
+- **To run it:** `pnpm install`, then `pnpm tauri dev`.
+- **Measurements, limits found and what to test on Windows:**
+  [docs/prototype-notes.md](docs/prototype-notes.md).
+
+What follows:
+
+1. Test the prototype on Windows.
+2. Settle the open decisions below before building real modules.
+3. Build Sift, in suggest-only mode.
 
 ### Model notes
 

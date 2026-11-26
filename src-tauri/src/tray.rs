@@ -6,7 +6,7 @@ use tauri::{
     tray::TrayIconBuilder,
 };
 
-use crate::panel;
+use crate::{modules::shelf, panel};
 
 pub(crate) const TRAY: &str = "main";
 const TOGGLE: &str = "toggle";
@@ -15,10 +15,16 @@ const QUIT: &str = "quit";
 /// The "Show Shelf" / "Hide Shelf" item, kept so that its text can follow the panel.
 struct ToggleItem(MenuItem<Wry>);
 
+/// Call it once the modules are started: the menu only has entries for the ones that run.
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let toggle = MenuItem::with_id(app, TOGGLE, toggle_text(false), true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT, "Quit Shelf", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu = Menu::new(app)?;
+    // The shelf's entry, only when the Shelf module runs.
+    if shelf::is_running(app) {
+        let toggle = MenuItem::with_id(app, TOGGLE, toggle_text(false), true, None::<&str>)?;
+        menu.append_items(&[&toggle, &PredefinedMenuItem::separator(app)?])?;
+        app.manage(ToggleItem(toggle));
+    }
+    menu.append(&MenuItem::with_id(app, QUIT, "Quit Shelf", true, None::<&str>)?)?;
 
     let tray = TrayIconBuilder::with_id(TRAY)
         .tooltip("Shelf")
@@ -41,11 +47,10 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     };
 
     tray.build(app)?;
-    app.manage(ToggleItem(toggle));
     Ok(())
 }
 
-/// Makes the menu say what a click will do now.
+/// Makes the menu say what a click will do now. Does nothing when the menu has no entry for the shelf.
 pub fn sync(app: &AppHandle) {
     if let Some(item) = app.try_state::<ToggleItem>() {
         let _ = item.0.set_text(toggle_text(panel::is_open(app)));
@@ -57,7 +62,7 @@ pub fn rect(app: &AppHandle) -> Option<Rect> {
     app.tray_by_id(TRAY)?.rect().ok()?
 }
 
-/// What the menu's first item says now, for the test aid to read.
+/// What the shelf's entry says now, for the test aid to read. `None` when the menu has no such entry.
 #[cfg(feature = "dev-control")]
 pub fn toggle_label(app: &AppHandle) -> Option<String> {
     app.try_state::<ToggleItem>()?.0.text().ok()

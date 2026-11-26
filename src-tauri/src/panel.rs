@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, LogicalPosition, Manager};
 
-use crate::tray;
+use crate::{modules::shelf, tray};
 
 pub const LABEL: &str = "shelf";
 
@@ -30,7 +30,8 @@ pub fn toggle(app: &AppHandle) {
 }
 
 pub fn show(app: &AppHandle) {
-    if is_open(app) {
+    // The panel only shows the shelf so far: when the Shelf module does not run, there is nothing to open.
+    if is_open(app) || !shelf::is_running(app) {
         return;
     }
     match platform::create(app, position(app)) {

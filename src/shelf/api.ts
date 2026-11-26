@@ -1,4 +1,6 @@
-// The core's commands (src-tauri/src/commands.rs). Each one that changes the shelf answers with the shelf as it is now.
+// The core's commands: the shelf's are in src-tauri/src/modules/shelf/commands.rs, the panel's in
+// src-tauri/src/commands.rs. Each one that changes the shelf answers with the shelf as it is now. When the Shelf
+// module is off, the shelf's commands reject with a message.
 
 import {invoke} from "@tauri-apps/api/core";
 

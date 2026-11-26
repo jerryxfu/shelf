@@ -6,9 +6,11 @@ model is one of its modules, so nothing you sort ever leaves the machine.
 
 > **Status:** the first prototype passes on macOS: a tray icon and a floating shelf panel that
 > files can be dragged into and out of. It is small and light (a 3.3 MB app, 15 MB of memory when
-> idle) and feels native, so Tauri stays. Next: run it on Windows, where it compiles but is
-> untried. See [docs/prototype-notes.md](docs/prototype-notes.md). No module exists yet. The rest
-> of this file records what has been decided and what is still open.
+> idle) and feels native, so Tauri stays. On Windows it builds but is untried. The core pieces
+> that modules need are built too (26 Nov 2026): the list of modules, settings, and the action log
+> with undo. The shelf is the first module, and Sift is next. See
+> [docs/prototype-notes.md](docs/prototype-notes.md). The rest of this file records what has been
+> decided and what is still open.
 
 ## Why
 
@@ -33,18 +35,22 @@ model is one of its modules, so nothing you sort ever leaves the machine.
 
 ## Modules
 
-| Module       | What it does                                                                 | Status  |
-|--------------|------------------------------------------------------------------------------|---------|
-| **Sift**     | Sorts new files (Downloads first, then Desktop screenshots) into folders      | First   |
-| **Shelf**    | A drop spot that holds files until you act on them                           | Planned |
-| **Expedite** | Sends what is on the shelf as an [Expedite](https://jerryxf.net/expedite) drop | Planned |
-| **AI**       | Gives the other modules a local model to ask. The model can be swapped        | First   |
-| **Pin**      | Keeps a chosen window on top of the others. Windows only                      | Planned |
+| Module       | What it does                                                                 | Status    |
+|--------------|------------------------------------------------------------------------------|-----------|
+| **Sift**     | Sorts new files (Downloads first, then Desktop screenshots) into folders      | First     |
+| **Shelf**    | A drop spot that holds files until you act on them                           | Prototype |
+| **Expedite** | Sends what is on the shelf as an [Expedite](https://jerryxf.net/expedite) drop | Planned   |
+| **AI**       | Gives the other modules a local model to ask. The model can be swapped        | First     |
+| **Pin**      | Keeps a chosen window on top of the others. Windows only                      | Planned   |
 
-- **AI is optional.** Modules that do not need it keep working when no model is running. Sift falls
-  back to simple rules (file type, the site a file came from) without a model.
-- **A module declares which systems it supports.** macOS gives apps no supported way to keep another
-  app's window on top, so Pin is hidden there.
+- **Modules are built into the app,** not loaded from outside. Each one lives in its own folder,
+  with a short description: its name and the systems it supports. That keeps a module
+  self-contained, so adding or removing one touches little else.
+- **Each module can be switched on or off** in the settings. A module that is off starts nothing.
+- **A module is hidden on a system it does not support.** macOS gives apps no supported way to keep
+  another app's window on top, so Pin is hidden there.
+- **AI is optional.** Modules that do not need it keep working when no model is running. Without a
+  model, Sift still files with one click (see below).
 
 ### Sift
 
@@ -54,6 +60,12 @@ model is one of its modules, so nothing you sort ever leaves the machine.
   optional new name, a confidence and a one-line reason.
 - **Action:** high confidence moves the file and shows a notification with Undo. Low confidence asks.
 - **Starts in suggest-only mode.** Auto-move is switched on once it has earned trust.
+- **New files show in the floating panel,** in a Sift view next to the shelf. Each one is a row with
+  the current session's course folders as buttons. One click files it. A plain notification says
+  that a file is waiting.
+- **Without a model, Sift does not guess.** The row comes with no folder picked. If a folder's name
+  is in the file's name, that folder comes first. This is built first.
+- **With a model,** the same row arrives with one folder already picked, and the reason.
 
 Rules Sift follows:
 
@@ -77,6 +89,7 @@ Rules Sift follows:
 - Find a file by describing it ("the physics lab handout from last week").
 - Summarize a document when it arrives, or pull due dates from a syllabus.
 - Create the course folders when a new session starts.
+- A sort button for Sift's folder buttons: alphabetical or last modified.
 
 ## Architecture
 
@@ -85,7 +98,14 @@ trigger  ->  gather context  ->  ask the AI module (optional)  ->  propose or ac
 ```
 
 - **Core:** module loading, settings, the action log with undo, notifications, the tray or menu bar
-  icon.
+  icon. All of it is Rust, in one process.
+- **Settings:** one JSON file, `settings.json`, in the system's folder for app data, owned by the
+  core. A settings window comes after Sift works.
+- **Action log:** kept by the core and shared by all modules. One text file, `actions.jsonl`, with
+  one line per action. Undo moves the file back, and refuses if something is in the way.
+- **Where those two files are:** `~/Library/Application Support/net.jerryxf.shelf/` on macOS,
+  `%APPDATA%\net.jerryxf.shelf\` on Windows.
+- **Interface:** one floating panel. The shelf and Sift each have a view in it.
 - **AI module:** talks to an OpenAI-compatible local server (LM Studio at `http://localhost:1234`).
   Changing the model is a setting.
 - **Core logic has no UI code in it,** so the interface can change without rewriting the modules.
@@ -113,17 +133,20 @@ Swift was the fallback if it did not feel right.
 - **Result on macOS (25 Nov 2026): it passes.** Checked by script and tried by hand: dragging in
   and out feels natural, clicking the panel leaves the app in use alone, and the panel looks at
   home. The Swift fallback is not needed.
-- **Windows:** the code compiles for Windows (checked from the Mac) but has never been run there.
-  `.github/workflows/windows.yml` builds an `.exe` on GitHub to try.
+- **Windows:** it builds on GitHub into an `.exe` and a 1.2 MB installer
+  (`.github/workflows/windows.yml`, started by hand), but has never been run there.
 - **To run it:** `pnpm install`, then `pnpm tauri dev`.
-- **Measurements, limits found and what to test on Windows:**
-  [docs/prototype-notes.md](docs/prototype-notes.md).
+- **Measurements and limits found:** [docs/prototype-notes.md](docs/prototype-notes.md).
+- **What to try on Windows:** [docs/windows-checklist.md](docs/windows-checklist.md).
 
 What follows:
 
-1. Test the prototype on Windows.
-2. Settle the open decisions below before building real modules.
-3. Build Sift, in suggest-only mode.
+1. Test the prototype on Windows, with the checklist.
+2. Build Sift in suggest-only mode: first without a model, then with the AI module.
+
+Done since the prototype, on 26 Nov 2026: what modules need in the core. That is the list of
+modules, settings, and the action log with undo. What was built and the choices still open are at
+the end of [docs/prototype-notes.md](docs/prototype-notes.md).
 
 ### Model notes
 
@@ -141,8 +164,11 @@ Tested on a MacBook Pro M5 Pro with 64 GB, in LM Studio:
 
 ## Open decisions
 
+None of these blocks the first version of Sift. The ones that did were settled on 25 Nov 2026 and
+are written into the sections above.
+
 - **Which small model** Sift uses by default.
-- **Where the core logic lives:** all in Rust, or partly in a bundled Go helper.
 - **Auto-move or ask first,** and the confidence needed for auto-move.
-- **What the shelf looks like:** a floating panel, a menu bar popover, or a window.
-- **How Expedite is included:** bundle the CLI, or write the upload again in the app's language.
+- **How Expedite is included:** bundle the CLI, or write the upload again in Rust.
+- **The smaller choices made for the prototype and for the core pieces,** listed in
+  [docs/prototype-notes.md](docs/prototype-notes.md).

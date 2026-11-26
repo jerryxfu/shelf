@@ -1,7 +1,7 @@
-//! The shelf: files held until the user acts on them.
+//! The shelf itself: the files held until the user acts on them.
 //!
-//! Core logic only. Nothing here knows about windows, the tray or Tauri, so the interface can change without touching
-//! it. The shelf keeps paths, never file contents, and it never changes anything on disk.
+//! Plain Rust. Nothing here knows about windows, the tray or Tauri, so the interface can change without touching it.
+//! The shelf keeps paths, never file contents, and it never changes anything on disk.
 
 use std::path::{Path, PathBuf};
 
@@ -92,29 +92,7 @@ impl Details {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A folder of its own for one test, removed when the test ends.
-    struct Scratch(PathBuf);
-
-    impl Scratch {
-        fn new(test: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!("shelf-test-{test}-{}", std::process::id()));
-            std::fs::create_dir_all(&dir).unwrap();
-            Self(dir)
-        }
-
-        fn file(&self, name: &str, contents: &str) -> PathBuf {
-            let path = self.0.join(name);
-            std::fs::write(&path, contents).unwrap();
-            path
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
+    use crate::scratch::Scratch;
 
     #[test]
     fn adds_files_and_folders_with_their_details() {
@@ -122,7 +100,7 @@ mod tests {
         let file = scratch.file("notes.txt", "hello");
         let mut shelf = Shelf::default();
 
-        shelf.add([&file, &scratch.0]);
+        shelf.add([file.as_path(), scratch.dir()]);
 
         let items = shelf.items();
         assert_eq!(items.len(), 2);
@@ -140,7 +118,7 @@ mod tests {
         let mut shelf = Shelf::default();
 
         shelf.add([&file]);
-        shelf.add([file.clone(), scratch.0.join("missing.txt")]);
+        shelf.add([file.clone(), scratch.dir().join("missing.txt")]);
 
         assert_eq!(shelf.items().len(), 1);
     }

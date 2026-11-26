@@ -23,6 +23,10 @@ tauri-build = { version = "2.7", features = [] }
 tauri = { version = "2.12", features = ["tray-icon"] }
 tauri-plugin-drag = "2.1"
 serde = { version = "1", features = ["derive"] }
+# The settings file and the action log are JSON.
+serde_json = "1"
+# The date and time of each line in the action log.
+time = { version = "0.3", features = ["formatting"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Turns the shelf's window into an NSPanel, so clicking it does not take focus from the app in use.

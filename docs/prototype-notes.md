@@ -6,8 +6,8 @@ and out of. Built and measured on 25 Nov 2026, on a MacBook Pro M5 Pro with macO
 > **Verdict: Tauri 2 passes on macOS.** It is small and light, and both risky parts work through plugins. Claude
 > checked what a script can drive, then Jerry tried it [by hand](#tried-by-hand-by-jerry-25-nov-2026): dragging in
 > and out feels natural, clicking the panel leaves the app in use alone, and the panel does not look out of place.
-> **Windows:** the code compiles for it (checked from the Mac) but has never run there. That is the next thing to
-> check.
+> **Windows:** it builds into an `.exe` and an installer on GitHub, but nobody has run it there yet. That is the
+> next thing to check.
 
 ## What is in the prototype
 
@@ -19,7 +19,8 @@ and out of. Built and measured on 25 Nov 2026, on a MacBook Pro M5 Pro with macO
 - **Drag out:** a row can be dragged to Finder or another app.
 - **Low idle cost:** hiding the panel destroys its window and web view. Showing it makes a new one.
 
-Not in it, on purpose: AI, Sift, Expedite, settings, the module system.
+Not in the prototype, on purpose: AI, Sift, Expedite, settings, the module system. Settings and the module system
+came right after: see [Step 1](#step-1-the-core-pieces-26-nov-2026) at the end.
 
 ## How to run it
 
@@ -43,18 +44,26 @@ That takes about 50 seconds and writes `src-tauri/target/release/bundle/macos/Sh
 
 ## Layout
 
-| Path                         | What it holds                                                          |
-|------------------------------|------------------------------------------------------------------------|
-| `src/`                       | The interface: React, TypeScript, SCSS, built by Vite                  |
-| `src/shelf/`                 | The panel, the calls to the core, drag out                             |
-| `src-tauri/src/shelf.rs`     | The shelf itself. Plain Rust: no Tauri, no window code. Has unit tests |
-| `src-tauri/src/commands.rs`  | What the interface may ask the core to do                              |
-| `src-tauri/src/panel.rs`     | The panel's window: create, place, destroy. One part per system        |
-| `src-tauri/src/tray.rs`      | The tray icon and its menu                                             |
-| `src-tauri/src/dev.rs`       | A test aid, only built with `--features dev-control` (see below)       |
+As it is after [Step 1](#step-1-the-core-pieces-26-nov-2026).
+
+| Path                             | What it holds                                                              |
+|----------------------------------|----------------------------------------------------------------------------|
+| `src/`                           | The interface: React, TypeScript, SCSS, built by Vite                      |
+| `src/shelf/`                     | The panel, the calls to the core, drag out                                 |
+| `src-tauri/src/modules/mod.rs`   | The list of modules, and which of them run. Plain Rust, with unit tests    |
+| `src-tauri/src/modules/shelf/`   | The Shelf module. `items.rs` is the shelf itself: plain Rust, no Tauri, no window code, with unit tests. `commands.rs` is what the interface may ask of it |
+| `src-tauri/src/settings.rs`      | The settings file. Plain Rust, with unit tests                             |
+| `src-tauri/src/log.rs`           | The action log: move, rename, undo. Plain Rust, with unit tests            |
+| `src-tauri/src/lib.rs`           | The glue: reads the settings, starts the modules that run, builds the tray |
+| `src-tauri/src/commands.rs`      | What the interface may ask the core itself to do                           |
+| `src-tauri/src/panel.rs`         | The panel's window: create, place, destroy. One part per system            |
+| `src-tauri/src/tray.rs`          | The tray icon and its menu                                                 |
+| `src-tauri/src/dev.rs`           | A test aid, only built with `--features dev-control` (see below)           |
+| `src-tauri/src/scratch.rs`       | For tests only: a scratch folder per test                                  |
 
 The shelf's list lives in the Rust core, not in the page. That is what lets the web view be destroyed while the shelf
-keeps its files, and it keeps core logic free of interface code. About 1000 lines in all.
+keeps its files, and it keeps core logic free of interface code. About 2000 lines in all, a quarter of them tests.
+The prototype alone was about 1000.
 
 ## Measurements
 
@@ -73,6 +82,7 @@ Shelf and the WebKit helper processes that work for it.
 - **App size:** `Shelf.app` is **3.3 MB**, and 1.6 MB zipped. Apple Silicon only; a build for Intel Macs too would be
   about twice that.
 - **Interface bundle:** 247 KB of JavaScript (76 KB gzipped), most of it React.
+- **Windows installer:** 1.2 MB (built on GitHub, not yet run).
 
 One thing differs from the plan. The README said that with no window open only the Rust process runs. That is true
 until the panel is first opened. After that, two WebKit helpers (GPU and networking, 15 MB together) stay until Shelf
@@ -174,6 +184,9 @@ This session cannot move the mouse or take screenshots on the Mac: macOS did not
 - `--features dev-control` adds a few commands read from standard input: `show`, `hide`, `toggle`, `state`, `quit`,
   and `eval <script>`, which runs a script in the panel's page. It is off in a normal build, and the packaged app
   measured for size does not contain it.
+- Since Step 1, `state` also says whether the Shelf module runs and what its `shelf_items` command answers. In such
+  a build, `SHELF_DATA_DIR` names a scratch folder for the settings and the action log, so that a test never touches
+  the real ones.
 - Memory was read with `footprint`, windows with the system's window list, the front app with `lsappinfo`.
 - `pnpm tauri dev` does not pass standard input on, so the scripted checks ran on the binary it builds, started
   directly. `pnpm tauri dev` itself was checked to build, start, and show no Dock icon.
@@ -223,33 +236,15 @@ None of this has run on Windows. What is known so far:
 - **The code compiles for Windows.** Checked from the Mac with `cargo check --target x86_64-pc-windows-msvc`: no
   errors, and no linter warnings. That covers the Windows part of `panel.rs`, written from the documentation, and
   every Tauri and plugin call it makes.
-- **A check is not a build.** Nothing was linked into an `.exe`: that needs Microsoft's linker and libraries, so a
-  Windows machine or a Windows build on GitHub Actions. The step that puts the icon in the `.exe` was skipped too
-  (this Mac has no Windows resource compiler, so a stand-in that writes an empty file took its place, set with
-  `RC_x86_64_pc_windows_msvc`).
+  That check links nothing and skips the step that puts the icon in the `.exe` (this Mac has no Windows resource
+  compiler, so a stand-in that writes an empty file took its place, set with `RC_x86_64_pc_windows_msvc`).
+- **It builds for real on GitHub.** `.github/workflows/windows.yml` built it on a Windows runner at the first try,
+  in under 7 minutes (Rust 1.100, no warnings from Shelf's code). It made `shelf.exe` and an installer,
+  `Shelf_0.1.0_x64-setup.exe`, of 1.2 MB. The download with both is 2.8 MB.
 
-**Getting a Windows build without installing Rust on Windows:** `.github/workflows/windows.yml` builds it on
-GitHub. It has not run yet: it only exists on GitHub once it is pushed.
-
-1. Push the repository, with the workflow file.
-2. On GitHub: Actions, "windows build", Run workflow. The first run compiles everything and may take 10 to 15
-   minutes; later runs reuse the compiled crates.
-3. Download "shelf-windows" from the run's page. It holds `shelf.exe` (the app alone) and a setup `.exe` (the
-   installer).
-4. On Windows, run either. They are not signed, so Windows shows a blue "Windows protected your PC" box: More
-   info, then Run anyway.
-
-Still to do on a real Windows machine:
-
-- It builds into an `.exe` and starts.
-- The tray icon and its menu. Left click and right click.
-- The panel opens above the taskbar, not under it, and does not appear in the taskbar.
-- Clicking the panel does not take focus from the app in use (`WS_EX_NOACTIVATE`).
-- Drag in from Explorer, drag out to Explorer and to another app.
-- Dragging the panel by its header, which may not work on a window that cannot take focus.
-- The look: there is no blur behind the panel on Windows, and its corners are square.
-- WebView2 is a different engine from macOS's: check the layout.
-- Memory when idle and installer size. WebView2 has its own helper processes, so the numbers will differ.
+**What to try on a Windows machine, and how to get the build onto it:** [windows-checklist.md](windows-checklist.md).
+The points most likely to need work: dragging the panel by its header on a window that cannot take focus, where
+the panel opens when the tray icon is in the overflow area, and the look (no blur, square corners).
 
 ## Recommendation
 
@@ -263,3 +258,70 @@ Still to do on a real Windows machine:
   app.
 - **Windows is the remaining unknown.** The code compiles for it, but nobody has run it. It needs its own pass
   on a real machine before building modules on top: the list is above.
+
+## Step 1: the core pieces (26 Nov 2026)
+
+Built after the prototype and before any real module: what every module needs. With the default settings the app
+behaves exactly as before.
+
+- **The list of modules.** A module describes itself with an id, a name and the systems it supports. The shelf is
+  the first one.
+- **Settings.** `settings.json`, in the system's folder for app data (`~/Library/Application Support/net.jerryxf.shelf/`
+  on macOS, `%APPDATA%\net.jerryxf.shelf\` on Windows). For now it holds which modules are on.
+- **On and off.** A module that is off, or that does not support the system, is never started. For the shelf that
+  means no list of files, no Show Shelf entry in the tray menu, and a panel that does not open. To try it, set
+  `"shelf": false` in the settings file and restart.
+- **The action log with undo.** `actions.jsonl`, in the same folder, with one line of JSON per action. The core moves
+  or renames a file and writes the line. Undo moves the file back and writes a line too. Nothing calls it yet: Sift
+  will be the first.
+
+### Checks
+
+| What                                                                        | Result |
+|-----------------------------------------------------------------------------|--------|
+| Rust unit tests                                                             | 29 pass (4 in the prototype). One more, a move between two disks, only runs when a second disk is named |
+| Linter with and without the test aid, formatter, TypeScript check           | No warnings |
+| Compiles for Windows (`cargo check`, from the Mac)                          | Yes |
+| By script, default settings: show, add, list, remove, hide then show, quit  | As before. The first start writes `settings.json` |
+| By script, with the shelf off                                               | The app starts and quits. No shelf entry in the menu, the panel stays closed, and the shelf's commands answer "The Shelf module is off." |
+| By script, with a settings file that is not valid                           | The app starts with the defaults, says why on standard error, and leaves the file as it is |
+| A move between two disks, on a scratch disk image                           | Refused with a clear error. The file stays where it was |
+| Anything downloaded                                                         | Nothing. `serde_json` and `time` were already there as parts of Tauri |
+
+Not checked: anything on Windows beyond compiling, and nobody tried the app again by hand. **The Windows download
+on GitHub was built before this step and does not contain it.**
+
+### Choices made to get it built, all open
+
+- Modules live in `src-tauri/src/modules/<id>/`. Settings and the log are single files next to `panel.rs`.
+- `shelf.rs` became `items.rs`: a file with the same name as its folder trips a linter rule.
+- A module the settings file does not mention is on. There is no "off by default" yet. Worth a second look when Sift
+  arrives.
+- The first start writes `settings.json` with every module listed, so that there is a file to edit. After that the
+  app only reads it.
+- The settings are read once, at start. A change by hand needs a restart.
+- A settings file that cannot be read gives the defaults for this run and a line on standard error. The file is
+  left untouched.
+- Each line of the log has `id`, `at`, `module`, `from`, `to`, `reason`, and `undoes` for an undo. Times are in
+  universal time (UTC), to the second.
+- An undo is a line of its own. An action can be undone once, and an undo cannot be undone, so there is no redo.
+- A line of the log that cannot be read is skipped, never removed. The log only ever adds lines.
+- A move does not create the folder it moves into. Folders can be moved as well as files.
+- A path that is not valid Unicode is refused, because it could not be written in the log.
+- On a system that is neither macOS nor Windows, no module runs.
+
+### Open points
+
+- **Moves between disks are refused.** On this Mac, Downloads and both OneDrive folders are on the same disk, so
+  Sift's main route works. A friend with OneDrive on a second drive would hit the refusal.
+- **A very small gap in "never overwrite".** The log checks that the destination is free, then renames. A file
+  created there by another program in between would be replaced. Closing the gap needs one system call per system.
+- **A rename that only changes letter case** (`Notes.pdf` to `notes.pdf`) is refused on a disk that ignores case,
+  which is the default on both systems.
+- **If the log line cannot be written after the move,** the file is moved back. If that fails too, the file stays
+  moved and unlogged.
+- **An unreadable settings file is only reported on standard error.** A friend with the packaged app never sees
+  that. It needs the interface: a notification or the settings window.
+- **Two copies of Shelf running at once** could give two actions the same id. Nothing stops a second copy today.
+- **When Sift gets its view in the panel,** two places need a second look: the check in `panel.rs` before the panel
+  opens, and the shelf's entry in the tray menu. Both assume the panel only shows the shelf.

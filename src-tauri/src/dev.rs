@@ -18,12 +18,20 @@
 //!
 //! `pnpm tauri dev` does not pass standard input on to the app: run the built binary itself, with `pnpm dev` running
 //! for a debug build.
+//!
+//! Set `SHELF_DATA_DIR` to a scratch folder and Shelf keeps its settings and its action log there, not in the real
+//! place. Do that for any test that changes them.
 
-use std::io::BufRead;
+use std::{io::BufRead, path::PathBuf};
 
 use tauri::{AppHandle, Listener, Manager};
 
-use crate::panel;
+use crate::{modules::shelf, panel};
+
+/// The folder named by `SHELF_DATA_DIR`, if it is set.
+pub fn data_dir() -> Option<PathBuf> {
+    std::env::var_os("SHELF_DATA_DIR").map(PathBuf::from)
+}
 
 pub fn start(app: &AppHandle) {
     app.listen("dev-log", |event| println!("[dev-log] {}", event.payload()));
@@ -44,7 +52,8 @@ fn run(app: &AppHandle, line: &str) {
         "hide" => panel::hide(app),
         "toggle" => panel::toggle(app),
         "state" => println!(
-            "[dev] {}\n[dev] menu says {:?}\n[dev] {}",
+            "[dev] {}\n[dev] {}\n[dev] menu says {:?}\n[dev] {}",
+            shelf_state(app),
             state(app),
             crate::tray::toggle_label(app),
             tray_state(app)
@@ -65,6 +74,20 @@ fn run(app: &AppHandle, line: &str) {
         }
     }
     println!("[dev] done: {command}");
+}
+
+/// Whether the Shelf module runs, and what its `shelf_items` command answers: the names on the shelf, or the error
+/// it gives when the module is off. The command is called here as a plain function, with no page in between, so
+/// this works with the panel closed.
+fn shelf_state(app: &AppHandle) -> String {
+    let answer = shelf::commands::shelf_items(app.clone())
+        .map(|items| items.into_iter().map(|item| item.name).collect::<Vec<_>>());
+    let runs = if shelf::is_running(app) {
+        "running"
+    } else {
+        "not running"
+    };
+    format!("shelf module: {runs}, shelf_items answers {answer:?}")
 }
 
 /// What can be read of the panel without clicking it.
